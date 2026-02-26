@@ -7,7 +7,6 @@ pipeline {
     }
 
     environment {
-        // Pull the Aikido token from Jenkins credentials
         AIKIDO_API_KEY = credentials('aikido-token')
     }
 
@@ -17,18 +16,24 @@ pipeline {
                 sh 'mvn -B -DskipTests clean package'
             }
         }
+
         stage('Test') {
             steps {
                 sh 'mvn test'
             }
         }
+
         stage('Security Scan (Aikido)') {
             steps {
-                // Scans for SCA, SAST, and Secrets. 
-                // Using --fail-on ensures build fails if critical risks are found.
-                sh "aikido-api-client scan-release ${env.JOB_NAME} ${env.GIT_COMMIT} --apikey ${AIKIDO_API_KEY} --fail-on-sast-scan --fail-on-secrets-scan"
+                sh '''
+                  aikido-api-client scan-release simple-java-maven-app $GIT_COMMIT \
+                    --apikey $AIKIDO_API_KEY \
+                    --fail-on-sast-scan \
+                    --fail-on-secrets-scan
+                '''
             }
         }
+
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
@@ -36,6 +41,7 @@ pipeline {
                 }
             }
         }
+
         stage('Quality Gate') {
             steps {
                 timeout(time: 1, unit: 'HOURS') {
@@ -43,6 +49,7 @@ pipeline {
                 }
             }
         }
+
         stage('Deliver') {
             steps {
                 sh './jenkins/scripts/deliver.sh'
